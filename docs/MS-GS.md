@@ -25,6 +25,7 @@ Example of a registration request JSON:
 Then MS **SHALL** send back a HTTP response with details below.
 
 If the status code is 101 then WebSocket connection is established.
+
 If the status code is 400 then the registration has failed and MS **SHALL** include the following registration error JSON in the body.
 
 ---
