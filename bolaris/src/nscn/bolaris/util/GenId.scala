@@ -40,18 +40,18 @@ object GenId {
       stateCell <- AtomicCell[F].of((0L, -1L))
     } yield new GenId[F] {
       override def genId: F[Long] = for {
-        (sequence, timestamp) <- stateCell.evalGetAndUpdate(
+        (sequence, timestamp) <- stateCell.evalUpdateAndGet(
           (sequence, lastTimestamp) =>
             for {
-              currentTimestamp <- Clock[F].monotonic
+              currentTimestamp <- Clock[F].monotonic.map(_.toMillis)
               nextSequence =
-                if (lastTimestamp == currentTimestamp.length) {
+                if (lastTimestamp == currentTimestamp) {
                   // believe in RNG if we overflow here
                   (sequence + 1) & sequenceMask
                 } else {
                   0
                 }
-            } yield (nextSequence, currentTimestamp.length)
+            } yield (nextSequence, currentTimestamp)
         )
         rng <- Random[F].betweenLong(0L, maxRng + 1)
       } yield (timestamp << timestampShift) | (rng << rngShift) | (workerId << workerIdShift) | sequence
