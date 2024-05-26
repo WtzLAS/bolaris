@@ -20,7 +20,7 @@ Example of a registration request message:
 {
     "metadata": {
         "type": 1,
-        "id": <UINT32>,
+        "id": <INT64>,
     },
 
     "info": {
@@ -29,10 +29,10 @@ Example of a registration request message:
         "port": <UINT16>,
         "map": <STRING>,
         "playlist": <STRING>,
-        "curPlayers": <UINT32>,
-        "maxPlayers": <UINT32>,
+        "curPlayers": <INT32>,
+        "maxPlayers": <INT32>,
         "password": <STRING OPTIONAL>,
-        "state": <UINT32>,
+        "state": <INT32>,
     },
 
     "regToken": <STRING>
@@ -48,11 +48,11 @@ Example of a registration response message:
 {
     "metadata": {
         "type": 2,
-        "id": <UINT32>,
+        "id": <INT64>,
     },
 
     "success": <BOOL>,
-    "id": <UINT32 WHEN success = true>,
+    "id": <INT64 WHEN success = true>,
     "error": {
         "type": <INT32>,
         "msg": <STRING>
@@ -74,10 +74,10 @@ Example of a server presence response message:
     "port": <UINT16>,
     "map": <STRING>,
     "playlist": <STRING>,
-    "curPlayers": <UINT32>,
-    "maxPlayers": <UINT32>,
+    "curPlayers": <INT32>,
+    "maxPlayers": <INT32>,
     "password": <STRING OPTIONAL>,
-    "state": <UINT32>
+    "state": <INT32>
 }
 ```
 ---
@@ -90,7 +90,7 @@ Example of a player join request message:
 {
     "metadata": {
         "type": 3,
-        "id": <UINT32>,
+        "id": <INT64>,
     },
     
     "sessionToken": <STRING>,
@@ -105,7 +105,7 @@ Example of a player join response message:
 {
     "metadata": {
         "type": 4,
-        "id": <UINT32>,
+        "id": <INT64>,
     },
     
     "success": <BOOL>,

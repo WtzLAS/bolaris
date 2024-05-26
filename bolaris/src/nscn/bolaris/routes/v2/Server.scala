@@ -18,7 +18,7 @@ import cats.effect.std.AtomicCell
 import fs2.concurrent.Topic
 import fs2.concurrent.SignallingRef
 
-case class MessageMetadata()
+case class MessageMetadata(`type`: Int, id: Long)
 
 enum ServerState {
   case Registering(id: Long)
