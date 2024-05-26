@@ -18,18 +18,22 @@ MS **SHALL** go into `REGISTERING` right after a connection is accepted, and GS 
 Example of a registration request message:
 ```json
 {
-    "msgType": 1,
-    "msgId": <UINT32>,
+    "metadata": {
+        "type": 1,
+        "id": <UINT32>,
+    },
 
-    "name": <STRING>,
-    "desc": <STRING>,
-    "port": <UINT16>,
-    "map": <STRING>,
-    "playlist": <STRING>,
-    "curPlayers": <UINT32>,
-    "maxPlayers": <UINT32>,
-    "password": <STRING OPTIONAL>,
-    "state": <UINT32>,
+    "info": {
+        "name": <STRING>,
+        "desc": <STRING>,
+        "port": <UINT16>,
+        "map": <STRING>,
+        "playlist": <STRING>,
+        "curPlayers": <UINT32>,
+        "maxPlayers": <UINT32>,
+        "password": <STRING OPTIONAL>,
+        "state": <UINT32>,
+    },
 
     "regToken": <STRING>
 }
@@ -42,8 +46,10 @@ Then MS **SHALL** send back a registration response message, and the `msgId` fie
 Example of a registration response message:
 ```json
 {
-    "msgType": 2,
-    "msgId": <UINT32>,
+    "metadata": {
+        "type": 2,
+        "id": <UINT32>,
+    },
 
     "success": <BOOL>,
     "id": <UINT32 WHEN success = true>,
@@ -82,8 +88,10 @@ MS **CAN** also send a player join request message to GS and GS **MUST** send ba
 Example of a player join request message:
 ```json
 {
-    "msgType": 3,
-    "msgId": <UINT32>,
+    "metadata": {
+        "type": 3,
+        "id": <UINT32>,
+    },
     
     "sessionToken": <STRING>,
     "username": <STRING>,
@@ -95,8 +103,10 @@ Example of a player join request message:
 Example of a player join response message:
 ```json
 {
-    "msgType": 4,
-    "msgId": <UINT32>,
+    "metadata": {
+        "type": 4,
+        "id": <UINT32>,
+    },
     
     "success": <BOOL>,
     "error": {

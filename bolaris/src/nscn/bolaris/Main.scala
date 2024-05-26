@@ -19,12 +19,14 @@ object Main extends IOApp {
 
   override def run(args: List[String]): IO[ExitCode] =
     for {
-      routes <- ServerRoutes.service[IO]
+      given Random[IO] <- Random.scalaUtilRandom[IO]
+      given GenId[IO] <- GenId[IO](1L)
+      // routes <- ServerRoutes.service[IO]
       _ <- EmberServerBuilder
         .default[IO]
         .withHost(host"127.0.0.1")
         .withPort(port"7779")
-        .withHttpWebSocketApp(wsb => routes(wsb).orNotFound)
+        // .withHttpWebSocketApp(wsb => routes(wsb).orNotFound)
         .build
         .useForever
     } yield ExitCode.Success

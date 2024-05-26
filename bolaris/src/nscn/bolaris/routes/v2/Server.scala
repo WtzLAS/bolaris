@@ -13,8 +13,20 @@ import org.http4s.websocket.WebSocketFrame
 import fs2.Stream
 import cats.syntax.all.toFlatMapOps
 import cats.effect.std.Queue
+import nscn.bolaris.util.GenId
+import cats.effect.std.AtomicCell
+import fs2.concurrent.Topic
+import fs2.concurrent.SignallingRef
 
-case class Server(
+case class MessageMetadata()
+
+enum ServerState {
+  case Registering(id: Long)
+  case Normal(info: ServerInfo)
+}
+
+case class ServerInfo(
+    id: Long,
     name: String,
     desc: String,
     port: Int,
@@ -23,20 +35,36 @@ case class Server(
     curPlayers: Long,
     maxPlayers: Long,
     password: Option[String],
-    state: Int
+    gameState: Int
 )
 
+class ServerWebSocketProtocol[F[_]](stateRef: Ref[F, ServerState]) {
+  def register() = {
+    
+  }
+}
+
+// object ServerWebSocketProtocol {
+//   def make[F[_]](stateRef: Ref[F, ServerState]) = {
+    
+//   }
+// }
+
 object ServerRoutes {
-  def service[F[_]: Concurrent] = for {
-    servers <- Ref.of[F, Map[Long, Server]](Map.empty)
-  } yield (wsb: WebSocketBuilder[F]) =>
-    HttpRoutes.of[F] { case GET -> Root / "v2" / "ws" =>
-      for {
-        queue <- Queue.unbounded[F, WebSocketFrame]
-        res <- wsb.build(
-          Stream.fromQueueUnterminated(queue),
-          _.foreach(f => queue.offer(f))
-        )
-      } yield res
-    }
+  def service[F[_]: Concurrent: GenId] = ???
+  //   for {
+  //   servers <- AtomicCell[F].of(Map.empty[Long, ServerEntry[F]])
+  // } yield (wsb: WebSocketBuilder[F]) =>
+  //   HttpRoutes.of[F] { case GET -> Root / "v2" / "ws" =>
+  //     for {
+  //       entry <- ServerEntry[F]
+  //       _ <- servers.update(m =>
+  //         m.updated(entry.id, entry)
+  //       )
+  //       res <- wsb.build(
+  //         Stream.fromQueueNoneTerminated(entry.send).interruptWhen(entry.sig),
+  //         _.interruptWhen(entry.sig).through(entry.recv.publish)
+  //       )
+  //     } yield res
+  //   }
 }
