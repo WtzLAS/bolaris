@@ -17,36 +17,41 @@ import nscn.bolaris.util.GenId
 import cats.effect.std.AtomicCell
 import fs2.concurrent.Topic
 import fs2.concurrent.SignallingRef
+import io.circe.*
+import io.circe.syntax.*
 
-case class MessageMetadata(`type`: Int, id: Long)
 
-enum ServerState {
-  case Registering(id: Long)
-  case Normal(info: ServerInfo)
-}
 
-case class ServerInfo(
-    id: Long,
-    name: String,
-    desc: String,
-    port: Int,
-    map: String,
-    playlist: String,
-    curPlayers: Long,
-    maxPlayers: Long,
-    password: Option[String],
-    gameState: Int
-)
+case class MsgMetadata(`type`: Int, id: Long) derives Codec
 
-class ServerWebSocketProtocol[F[_]](stateRef: Ref[F, ServerState]) {
-  def register() = {
-    
-  }
-}
+case class MsgError(`type`: Int, msg: String) derives Codec
+
+case class MsgRegistrationRequest(
+    metadata: MsgMetadata,
+    // info: ServerInfo,
+    regToken: String
+) derives Codec
+
+case class MsgRegistrationResponse(
+    metadata: MsgMetadata,
+    success: Boolean,
+    id: Option[Long],
+    error: Option[MsgError]
+) derives Codec
+
+
+
+// class ServerWebSocketProtocol[F[_]](stateRef: Ref[F, ServerState]) {
+//   def process(f: WebSocketFrame): F[Option[WebSocketFrame]] = for {
+//     curState <- stateRef.tryUpdate()
+//   } yield ""
+
+//   def register() = {}
+// }
 
 // object ServerWebSocketProtocol {
 //   def make[F[_]](stateRef: Ref[F, ServerState]) = {
-    
+
 //   }
 // }
 

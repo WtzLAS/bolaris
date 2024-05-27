@@ -32,7 +32,7 @@ Example of a registration request message:
         "curPlayers": <INT32>,
         "maxPlayers": <INT32>,
         "password": <STRING OPTIONAL>,
-        "state": <INT32>,
+        "gameState": <INT32>,
     },
 
     "regToken": <STRING>
@@ -77,7 +77,7 @@ Example of a server presence response message:
     "curPlayers": <INT32>,
     "maxPlayers": <INT32>,
     "password": <STRING OPTIONAL>,
-    "state": <INT32>
+    "gameState": <INT32>
 }
 ```
 ---

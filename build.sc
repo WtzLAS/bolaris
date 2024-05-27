@@ -6,6 +6,7 @@ object V {
   val log4cats = "2.7.0"
   val scribe = "3.13.5"
   val circe = "0.14.7"
+  val chronoscala = "2.0.10"
 }
 
 object bolaris extends ScalaModule {
@@ -21,7 +22,7 @@ object bolaris extends ScalaModule {
     ivy"com.outr::scribe-slf4j2:${V.scribe}",
     ivy"com.outr::scribe-cats:${V.scribe}",
     ivy"io.circe::circe-core:${V.circe}",
-    ivy"io.circe::circe-generic:${V.circe}",
-    ivy"io.circe::circe-parser:${V.circe}"
+    ivy"io.circe::circe-parser:${V.circe}",
+    ivy"io.github.chronoscala::chronoscala:${V.chronoscala}"
   )
 }
