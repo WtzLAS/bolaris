@@ -122,12 +122,12 @@ class ServerWebSocketProtocol(
             if (filtered) { None }
             else { Some(f) }
           )
-      // case WebSocketFrame.Pong(data) =>
-      //   IO.delay(data.decodeUtf8.map(parse))
-      //     .rethrow
-      //     .rethrow
-      //     .flatMap(processPong)
-      //     .map(_ => None)
+      case WebSocketFrame.Pong(data) =>
+        IO.delay(data.decodeUtf8.map(parse))
+          .rethrow
+          .rethrow
+          .flatMap(processPong)
+          .map(_ => None)
       case _ => IO.pure(Some(f))
   } yield filtered
 }
