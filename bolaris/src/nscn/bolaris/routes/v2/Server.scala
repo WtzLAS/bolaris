@@ -22,8 +22,8 @@ import scodec.bits.ByteVector
 import scribe.Scribe
 import scribe.cats.effect
 
-import scala.jdk.DurationConverters.*
 import java.nio.charset.CharacterCodingException
+import scala.jdk.DurationConverters.*
 
 private def toUnsignedShort(x: Int) =
   Array[Byte](((x >> 8) & 0xff).toByte, (x & 0xff).toByte)
@@ -82,16 +82,13 @@ class ServerWebSocketProtocol(
     _ <- state.sendQueue.offer(WebSocketFrame.Close(code.toWsStatusCode))
   } yield ()
 
-  def register(metadata: MsgMetadata, docReq: Json) = (for {
+  def register(metadata: MsgMetadata, docReq: Json) = for {
     req <- IO.delay(docReq.as[MsgRegistrationRequest]).rethrow
     id <- stateRef.modify(s =>
       (s.withInfo(req.info, OffsetDateTime.now()), s.id)
     )
     _ <- Scribe[IO].info(s"Server $id \"${req.info.name}\" has registered")
-  } yield MsgRegistrationResponse.succeeded(metadata, id).asJson).recover {
-    case s: DecodingFailure =>
-      MsgRegistrationResponse.failed(metadata, 1, s.getMessage).asJson
-  }
+  } yield MsgRegistrationResponse.succeeded(metadata, id).asJson
 
   def processMsg(doc: Json): IO[Boolean] = for {
     metadata <- IO

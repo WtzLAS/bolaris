@@ -60,6 +60,11 @@ Example of a registration response message:
 }
 ```
 ---
+Errors:
+| Type | Desc |
+| --- | --- |
+| 1 | Invalid registration token |
+---
 
 If the `success` field is `true` then MS **SHALL** go into `NORMAL` state.
 
