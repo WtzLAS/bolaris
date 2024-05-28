@@ -22,6 +22,13 @@ import scribe.Scribe
 import scribe.cats.effect
 
 import scala.jdk.DurationConverters.*
+import scodec.bits.ByteVector
+import io.circe.ParsingFailure
+
+private def toUnsignedShort(x: Int) =
+  Array[Byte](((x >> 8) & 0xff).toByte, (x & 0xff).toByte)
+
+extension (i: Int) def toWsStatusCode = ByteVector.view(toUnsignedShort(i))
 
 case class MsgMetadata(`type`: Int, id: Long) derives Codec
 
@@ -56,17 +63,24 @@ class ServerWebSocketProtocol(
 ) {
   def pingStream(state: ServerState): Stream[IO, WebSocketFrame] = Stream
     .awakeEvery[IO](1.seconds.toScala)
-    .interruptWhen(state.interruptSignal)
     .evalMapFilter(_ =>
       for {
         state <- stateRef.get
-      } yield
-        if (state.isNormal) {
+        now <- IO.delay(OffsetDateTime.now())
+        frame <- IO.pure(if (state.lastUpdateAt + 30.seconds < now) {
+          Some(WebSocketFrame.Close(1000.toWsStatusCode))
+        } else if (state.isNormal) {
           Some(WebSocketFrame.Ping())
         } else {
           None
-        }
+        })
+      } yield frame
     )
+
+  def close(code: Int) = for {
+    state <- stateRef.get
+    _ <- state.sendQueue.offer(WebSocketFrame.Close(code.toWsStatusCode))
+  } yield ()
 
   def register(metadata: MsgMetadata, docReq: Json) = (for {
     req <- IO.delay(docReq.as[MsgRegistrationRequest]).rethrow
@@ -74,18 +88,9 @@ class ServerWebSocketProtocol(
       (s.withInfo(req.info, OffsetDateTime.now()), s.id)
     )
     _ <- Scribe[IO].info(s"Server $id \"${req.info.name}\" has registered")
-  } yield MsgRegistrationResponse(
-    metadata.copy(`type` = 2),
-    true,
-    Some(id),
-    None
-  ).asJson).recover { case s: DecodingFailure =>
-    MsgRegistrationResponse(
-      metadata.copy(`type` = 2),
-      false,
-      None,
-      Some(MsgError(1, s.getMessage))
-    ).asJson
+  } yield MsgRegistrationResponse.succeeded(metadata, id).asJson).recover {
+    case s: DecodingFailure =>
+      MsgRegistrationResponse.failed(metadata, 1, s.getMessage).asJson
   }
 
   def processMsg(doc: Json): IO[Boolean] = for {
@@ -101,7 +106,7 @@ class ServerWebSocketProtocol(
         stateRef.get.flatMap(
           _.sendQueue.offer(WebSocketFrame.Text(res.noSpaces, true))
         )
-      case None => IO.pure(())
+      case None => IO.unit
   } yield res.isDefined
 
   def processPong(doc: Json): IO[Unit] = for {
@@ -121,13 +126,17 @@ class ServerWebSocketProtocol(
           .map(filtered =>
             if (filtered) { None }
             else { Some(f) }
-          )
-      case WebSocketFrame.Pong(data) =>
-        IO.delay(data.decodeUtf8.map(parse))
-          .rethrow
-          .rethrow
-          .flatMap(processPong)
-          .map(_ => None)
+          ).recoverWith {
+            case s: ParsingFailure => close(1003) *> IO.pure(None)
+            case s: DecodingFailure => close(1003) *> IO.pure(None)
+            case _ => close(1011) *> IO.pure(None)
+          }
+      // case WebSocketFrame.Pong(data) =>
+      //   IO.delay(data.decodeUtf8.map(parse))
+      //     .rethrow
+      //     .rethrow
+      //     .flatMap(processPong)
+      //     .map(_ => None)
       case _ => IO.pure(Some(f))
   } yield filtered
 }
@@ -146,7 +155,7 @@ object ServerRoutes {
           protocol = ServerWebSocketProtocol(serverRef)
           res <- wsb
             .withFilterPingPongs(false)
-            .withDefragment(false)
+            .withDefragment(true)
             .withOnClose(for {
               server <- serverRef.get
               _ <- service.removeServer(server.id)
@@ -157,10 +166,8 @@ object ServerRoutes {
             .build(
               Stream
                 .fromQueueUnterminated(server.sendQueue)
-                .merge(protocol.pingStream(server))
-                .interruptWhen(server.interruptSignal),
-              _.interruptWhen(server.interruptSignal)
-                .evalMapFilter(protocol.process)
+                .merge(protocol.pingStream(server)),
+              _.evalMapFilter(protocol.process)
                 .through(server.recvTopic.publish)
             )
         } yield res

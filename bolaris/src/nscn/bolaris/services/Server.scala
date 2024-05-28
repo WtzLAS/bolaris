@@ -26,59 +26,48 @@ case class ServerInfo(
 enum ServerState {
   case Registering(
       _id: Long,
-      _createdAt: OffsetDateTime,
+      _lastUpdateAt: OffsetDateTime,
       _sendQueue: Queue[IO, WebSocketFrame],
-      _recvTopic: Topic[IO, WebSocketFrame],
-      _interruptSignal: SignallingRef[IO, Boolean]
+      _recvTopic: Topic[IO, WebSocketFrame]
   )
   case Normal(
       _id: Long,
       _info: ServerInfo,
       _lastUpdateAt: OffsetDateTime,
       _sendQueue: Queue[IO, WebSocketFrame],
-      _recvTopic: Topic[IO, WebSocketFrame],
-      _interruptSignal: SignallingRef[IO, Boolean]
+      _recvTopic: Topic[IO, WebSocketFrame]
   )
 
   def id: Long = this match
-    case Registering(id, _, _, _, _) => id
-    case Normal(id, _, _, _, _, _)   => id
+    case Registering(id, _, _, _) => id
+    case Normal(id, _, _, _, _)   => id
+
+  def info = this match
+    case Registering(_, _, _, _)  => None
+    case Normal(_, info, _, _, _) => Some(info)
 
   def sendQueue = this match
-    case Registering(_, _, sendQueue, _, _) => sendQueue
-    case Normal(_, _, _, sendQueue, _, _)   => sendQueue
+    case Registering(_, _, sendQueue, _) => sendQueue
+    case Normal(_, _, _, sendQueue, _)   => sendQueue
 
   def recvTopic = this match
-    case Registering(_, _, _, recvTopic, _) => recvTopic
-    case Normal(_, _, _, _, recvTopic, _)   => recvTopic
+    case Registering(_, _, _, recvTopic) => recvTopic
+    case Normal(_, _, _, _, recvTopic)   => recvTopic
 
-  def interruptSignal = this match
-    case Registering(_, _, _, _, interruptSignal) => interruptSignal
-    case Normal(_, _, _, _, _, interruptSignal)   => interruptSignal
+  def lastUpdateAt = this match
+    case Registering(_, lastUpdateAt, _, _) => lastUpdateAt
+    case Normal(_, _, lastUpdateAt, _, _)   => lastUpdateAt
 
   def withInfo(newInfo: ServerInfo, now: OffsetDateTime) =
     this match
-      case Registering(id, createdAt, sendQueue, recvTopic, interruptSignal) =>
-        Normal(id, newInfo, now, sendQueue, recvTopic, interruptSignal)
-      case Normal(id, _, lastUpdateAt, sendQueue, recvTopic, interruptSignal) =>
-        Normal(id, newInfo, now, sendQueue, recvTopic, interruptSignal)
-
-  def info = this match
-    case Registering(id, createdAt, sendQueue, recvTopic, interruptSignal) =>
-      None
-    case Normal(
-          id,
-          info,
-          lastUpdateAt,
-          sendQueue,
-          recvTopic,
-          interruptSignal
-        ) =>
-      Some(info)
+      case Registering(id, _, sendQueue, recvTopic) =>
+        Normal(id, newInfo, now, sendQueue, recvTopic)
+      case Normal(id, _, lastUpdateAt, sendQueue, recvTopic) =>
+        Normal(id, newInfo, now, sendQueue, recvTopic)
 
   def isRegistering = this match
-    case Registering(_, _, _, _, _) => true
-    case Normal(_, _, _, _, _, _)   => false
+    case Registering(_, _, _, _) => true
+    case Normal(_, _, _, _, _)   => false
 
   def isNormal = !isRegistering
 }
@@ -89,13 +78,11 @@ object ServerState {
     createdAt <- IO.delay(OffsetDateTime.now())
     sendQueue <- Queue.bounded[IO, WebSocketFrame](128)
     recvTopic <- Topic[IO, WebSocketFrame]
-    interruptSignal <- SignallingRef[IO].of(false)
   } yield ServerState.Registering(
     id,
     createdAt,
     sendQueue,
-    recvTopic,
-    interruptSignal
+    recvTopic
   )
 }
 
