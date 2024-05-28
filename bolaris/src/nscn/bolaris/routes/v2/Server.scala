@@ -2,11 +2,11 @@ package nscn.bolaris.routes.v2
 
 import cats.effect.IO
 import cats.effect.Ref
-import cats.syntax.all.*
 import fs2.Stream
 import io.circe.Codec
 import io.circe.DecodingFailure
 import io.circe.Json
+import io.circe.ParsingFailure
 import io.circe.parser.parse
 import io.circe.syntax.*
 import io.github.chronoscala.Imports.*
@@ -18,12 +18,12 @@ import org.http4s.HttpRoutes
 import org.http4s.circe.*
 import org.http4s.server.websocket.WebSocketBuilder
 import org.http4s.websocket.WebSocketFrame
+import scodec.bits.ByteVector
 import scribe.Scribe
 import scribe.cats.effect
 
 import scala.jdk.DurationConverters.*
-import scodec.bits.ByteVector
-import io.circe.ParsingFailure
+import java.nio.charset.CharacterCodingException
 
 private def toUnsignedShort(x: Int) =
   Array[Byte](((x >> 8) & 0xff).toByte, (x & 0xff).toByte)
@@ -126,17 +126,24 @@ class ServerWebSocketProtocol(
           .map(filtered =>
             if (filtered) { None }
             else { Some(f) }
-          ).recoverWith {
-            case s: ParsingFailure => close(1003) *> IO.pure(None)
+          )
+          .recoverWith {
+            case s: ParsingFailure  => close(1003) *> IO.pure(None)
             case s: DecodingFailure => close(1003) *> IO.pure(None)
-            case _ => close(1011) *> IO.pure(None)
+            case _                  => close(1011) *> IO.pure(None)
           }
-      // case WebSocketFrame.Pong(data) =>
-      //   IO.delay(data.decodeUtf8.map(parse))
-      //     .rethrow
-      //     .rethrow
-      //     .flatMap(processPong)
-      //     .map(_ => None)
+      case WebSocketFrame.Pong(data) =>
+        IO.delay(data.decodeUtf8.map(parse))
+          .rethrow
+          .rethrow
+          .flatMap(processPong)
+          .map(_ => None)
+          .recoverWith {
+            case s: CharacterCodingException => close(1007) *> IO.pure(None)
+            case s: ParsingFailure           => close(1003) *> IO.pure(None)
+            case s: DecodingFailure          => close(1003) *> IO.pure(None)
+            case _                           => close(1011) *> IO.pure(None)
+          }
       case _ => IO.pure(Some(f))
   } yield filtered
 }
