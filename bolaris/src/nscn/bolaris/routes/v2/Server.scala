@@ -106,14 +106,6 @@ class ServerWebSocketProtocol(
       case None => IO.unit
   } yield res.isDefined
 
-  def processPong(doc: Json): IO[Unit] = for {
-    newInfo <- IO.delay(doc.as[ServerInfo]).rethrow
-    _ <- stateRef.tryUpdate(s =>
-      if (s.isNormal) { s.withInfo(newInfo, OffsetDateTime.now()) }
-      else { s }
-    )
-  } yield ()
-
   def process(f: WebSocketFrame): IO[Option[WebSocketFrame]] = for {
     filtered <- f match
       case WebSocketFrame.Text(str, last) =>
@@ -128,18 +120,6 @@ class ServerWebSocketProtocol(
             case s: ParsingFailure  => close(1003) *> IO.pure(None)
             case s: DecodingFailure => close(1003) *> IO.pure(None)
             case _                  => close(1011) *> IO.pure(None)
-          }
-      case WebSocketFrame.Pong(data) =>
-        IO.delay(data.decodeUtf8.map(parse))
-          .rethrow
-          .rethrow
-          .flatMap(processPong)
-          .map(_ => None)
-          .recoverWith {
-            case s: CharacterCodingException => close(1007) *> Scribe[IO].info("1") *> IO.pure(None)
-            case s: ParsingFailure           => close(1003) *> Scribe[IO].info(s"${s.getMessage} recv: ${data.decodeUtf8Lenient}") *> IO.pure(None)
-            case s: DecodingFailure          => close(1003) *> Scribe[IO].info("3") *> IO.pure(None)
-            case _                           => close(1011) *> Scribe[IO].info("4") *> IO.pure(None)
           }
       case _ => IO.pure(Some(f))
   } yield filtered
@@ -158,7 +138,7 @@ object ServerRoutes {
           server <- serverRef.get
           protocol = ServerWebSocketProtocol(serverRef)
           res <- wsb
-            .withFilterPingPongs(false)
+            .withFilterPingPongs(true)
             .withDefragment(true)
             .withOnClose(for {
               server <- serverRef.get

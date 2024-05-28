@@ -6,7 +6,7 @@ All JSON **MUST** be encoded in **UTF-8**.
 
 GS **MUST** send a *GET* HTTPS request to `/v2/server/ws` of MS to init the WebSocket connection.
 
-MS **WILL** wait for a registration request message right after a connection is accepted, and GS **MUST** send one to proceed.
+GS **MUST** send registration requests regularly to avoid the removal.
 
 ---
 Example of a registration request message:
@@ -62,42 +62,6 @@ Errors:
 
 If the `success` field is `true` then MS **WILL** list the server on the public list.
 
-In this state, MS **WILL** send a ping every a few seconds and GS **MUST** send back a pong with server presence attached.
-
----
-Example of a ping:
-```json
-{
-    "metadata": {
-        "type": 3,
-        "id": <INT64>,
-    }
-}
-```
----
-Example of a pong:
-```json
-{
-    "metadata": {
-        "type": 4,
-        "id": <INT64>,
-    },
-
-    "info": {
-        "name": <STRING>,
-        "desc": <STRING>,
-        "port": <UINT16>,
-        "map": <STRING>,
-        "playlist": <STRING>,
-        "curPlayers": <INT32>,
-        "maxPlayers": <INT32>,
-        "password": <STRING OPTIONAL>,
-        "gameState": <INT32>
-    }
-}
-```
----
-
 MS **WILL** also send player join request messages to GS and GS **MUST** send back player join response messages which **MUST** has the same `metadata.id` as in the request.
 
 ---
@@ -105,7 +69,7 @@ Example of a player join request message:
 ```json
 {
     "metadata": {
-        "type": 5,
+        "type": 3,
         "id": <INT64>,
     },
     
@@ -120,7 +84,7 @@ Example of a player join response message:
 ```json
 {
     "metadata": {
-        "type": 6,
+        "type": 4,
         "id": <INT64>,
     },
     
