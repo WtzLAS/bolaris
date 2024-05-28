@@ -4,7 +4,7 @@ MS (Masterserver) and GS (Game Server) communicate in purely WebSocket.
 
 All JSON **MUST** be encoded in **UTF-8**.
 
-GS **MUST** send a *GET* HTTPS request to `/ws` of MS to init the WebSocket connection.
+GS **MUST** send a *GET* HTTPS request to `/v2/server/ws` of MS to init the WebSocket connection.
 
 MS **WILL** wait for a registration request message right after a connection is accepted, and GS **MUST** send one to proceed.
 
@@ -62,21 +62,38 @@ Errors:
 
 If the `success` field is `true` then MS **WILL** list the server on the public list.
 
-In this state, MS **WILL** send WebSocket `Ping` control frame every a few seconds and GS **MUST** send back WebSocket `Pong` control frame with a server presence response attached.
+In this state, MS **WILL** send a ping every a few seconds and GS **MUST** send back a pong with server presence attached.
 
 ---
-Example of a server presence response message:
+Example of a ping:
 ```json
 {
-    "name": <STRING>,
-    "desc": <STRING>,
-    "port": <UINT16>,
-    "map": <STRING>,
-    "playlist": <STRING>,
-    "curPlayers": <INT32>,
-    "maxPlayers": <INT32>,
-    "password": <STRING OPTIONAL>,
-    "gameState": <INT32>
+    "metadata": {
+        "type": 3,
+        "id": <INT64>,
+    }
+}
+```
+---
+Example of a pong:
+```json
+{
+    "metadata": {
+        "type": 4,
+        "id": <INT64>,
+    },
+
+    "info": {
+        "name": <STRING>,
+        "desc": <STRING>,
+        "port": <UINT16>,
+        "map": <STRING>,
+        "playlist": <STRING>,
+        "curPlayers": <INT32>,
+        "maxPlayers": <INT32>,
+        "password": <STRING OPTIONAL>,
+        "gameState": <INT32>
+    }
 }
 ```
 ---
@@ -88,7 +105,7 @@ Example of a player join request message:
 ```json
 {
     "metadata": {
-        "type": 3,
+        "type": 5,
         "id": <INT64>,
     },
     
@@ -103,7 +120,7 @@ Example of a player join response message:
 ```json
 {
     "metadata": {
-        "type": 4,
+        "type": 6,
         "id": <INT64>,
     },
     

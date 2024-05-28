@@ -62,7 +62,7 @@ class ServerWebSocketProtocol(
     stateRef: Ref[IO, ServerState]
 ) {
   def pingStream(state: ServerState): Stream[IO, WebSocketFrame] = Stream
-    .awakeEvery[IO](1.seconds.toScala)
+    .awakeEvery[IO](5.seconds.toScala)
     .evalMapFilter(_ =>
       for {
         state <- stateRef.get
@@ -136,10 +136,10 @@ class ServerWebSocketProtocol(
           .flatMap(processPong)
           .map(_ => None)
           .recoverWith {
-            case s: CharacterCodingException => close(1007) *> IO.pure(None)
-            case s: ParsingFailure           => close(1003) *> IO.pure(None)
-            case s: DecodingFailure          => close(1003) *> IO.pure(None)
-            case _                           => close(1011) *> IO.pure(None)
+            case s: CharacterCodingException => close(1007) *> Scribe[IO].info("1") *> IO.pure(None)
+            case s: ParsingFailure           => close(1003) *> Scribe[IO].info(s"${s.getMessage} recv: ${data.decodeUtf8Lenient}") *> IO.pure(None)
+            case s: DecodingFailure          => close(1003) *> Scribe[IO].info("3") *> IO.pure(None)
+            case _                           => close(1011) *> Scribe[IO].info("4") *> IO.pure(None)
           }
       case _ => IO.pure(Some(f))
   } yield filtered
