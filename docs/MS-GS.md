@@ -34,23 +34,24 @@ Example of a registration request message:
 ```
 ---
 
-Then MS **WILL** send back a registration response message, and the `metadata.id` field **WILL** be the same as in request.
+Then MS **WILL** send back a general response message with no extra fields, and the `metadata.id` field **WILL** be the same as in request.
 
 ---
-Example of a registration response message:
+Example of a general response message:
 ```json
 {
     "metadata": {
-        "type": 2,
+        "type": <NEGATIVE OF THE REQUEST>,
         "id": <INT64>,
     },
 
     "success": <BOOL>,
-    "id": <INT64 WHEN success = true>,
     "error": {
         "type": <INT32>,
         "msg": <STRING>
-    } <WHEN success = false>
+    } <WHEN success = false>,
+
+    <OTHER FIELD SPECIFIED IN SPEC>
 }
 ```
 ---
@@ -62,14 +63,14 @@ Errors:
 
 If the `success` field is `true` then MS **WILL** list the server on the public list.
 
-MS **WILL** also send player join request messages to GS and GS **MUST** send back player join response messages which **MUST** has the same `metadata.id` as in the request.
+MS **WILL** also send player join request messages to GS and GS **MUST** send back general response messages with no extra fields which **MUST** has the same `metadata.id` as in the request.
 
 ---
 Example of a player join request message:
 ```json
 {
     "metadata": {
-        "type": 3,
+        "type": 2,
         "id": <INT64>,
     },
     
@@ -77,22 +78,6 @@ Example of a player join request message:
     "username": <STRING>,
     "clantag": <STRING>,
     "conv": <UINT32>
-}
-```
----
-Example of a player join response message:
-```json
-{
-    "metadata": {
-        "type": 4,
-        "id": <INT64>,
-    },
-    
-    "success": <BOOL>,
-    "error": {
-        "type": <INT32>,
-        "msg": <STRING>
-    } <WHEN success = false>
 }
 ```
 ---

@@ -1,13 +1,15 @@
 package nscn.bolaris.routes.v2
 
 import cats.effect.IO
-import cats.effect.Ref
+import cats.effect.kernel.Ref
+import cats.syntax.all.*
+import fs2.Pipe
 import fs2.Stream
+import fs2.data.json
+import fs2.data.json.circe.*
 import io.circe.Codec
-import io.circe.DecodingFailure
+import io.circe.Encoder
 import io.circe.Json
-import io.circe.ParsingFailure
-import io.circe.parser.parse
 import io.circe.syntax.*
 import io.github.chronoscala.Imports.*
 import nscn.bolaris.services.ServerInfo
@@ -22,138 +24,132 @@ import scodec.bits.ByteVector
 import scribe.Scribe
 import scribe.cats.effect
 
-import java.nio.charset.CharacterCodingException
-import scala.jdk.DurationConverters.*
-
-private def toUnsignedShort(x: Int) =
-  Array[Byte](((x >> 8) & 0xff).toByte, (x & 0xff).toByte)
-
-extension (i: Int) def toWsStatusCode = ByteVector.view(toUnsignedShort(i))
-
 case class MsgMetadata(`type`: Int, id: Long) derives Codec
 
 case class MsgError(`type`: Int, msg: String) derives Codec
 
-case class MsgRegistrationRequest(
-    info: ServerInfo,
-    regToken: String
-) derives Codec
-
-case class MsgRegistrationResponse(
+case class MsgGeneralResponse(
     metadata: MsgMetadata,
     success: Boolean,
-    id: Option[Long],
     error: Option[MsgError]
 ) derives Codec
 
-object MsgRegistrationResponse {
-  def succeeded(metadata: MsgMetadata, id: Long) =
-    MsgRegistrationResponse(metadata.copy(`type` = 2), true, Some(id), None)
+object MsgGeneralResponse {
+  def succeeded(metadata: MsgMetadata) =
+    MsgGeneralResponse(metadata.copy(`type` = -metadata.`type`), true, None)
   def failed(metadata: MsgMetadata, errorType: Int, errorMsg: String) =
-    MsgRegistrationResponse(
-      metadata.copy(`type` = 2),
+    MsgGeneralResponse(
+      metadata.copy(`type` = -metadata.`type`),
       false,
-      None,
       Some(MsgError(errorType, errorMsg))
     )
 }
 
-class ServerWebSocketProtocol(
-    stateRef: Ref[IO, ServerState]
-) {
-  def pingStream(state: ServerState): Stream[IO, WebSocketFrame] = Stream
-    .awakeEvery[IO](5.seconds.toScala)
-    .evalMapFilter(_ =>
-      for {
-        state <- stateRef.get
-        now <- IO.delay(OffsetDateTime.now())
-        frame <- IO.pure(if (state.lastUpdateAt + 30.seconds < now) {
-          Some(WebSocketFrame.Close(1000.toWsStatusCode))
-        } else if (state.isNormal) {
-          Some(WebSocketFrame.Ping())
-        } else {
-          None
-        })
-      } yield frame
-    )
+case class MsgRegistrationRequest(
+    metadata: MsgMetadata,
+    info: ServerInfo,
+    regToken: String
+) derives Codec
 
-  def close(code: Int) = for {
+extension (stateRef: Ref[IO, ServerState]) {
+  def close(code: Int): IO[Unit] = for {
     state <- stateRef.get
-    _ <- state.sendQueue.offer(WebSocketFrame.Close(code.toWsStatusCode))
+    statusCode = ByteVector.view(
+      Array[Byte](((code >> 8) & 0xff).toByte, (code & 0xff).toByte)
+    )
+    _ <- state.rawSendQueue.offer(WebSocketFrame.Close(statusCode))
   } yield ()
 
-  def register(metadata: MsgMetadata, docReq: Json) = for {
-    req <- IO.delay(docReq.as[MsgRegistrationRequest]).rethrow
-    id <- stateRef.modify(s =>
-      (s.withInfo(req.info, OffsetDateTime.now()), s.id)
-    )
-    _ <- Scribe[IO].info(s"Server $id \"${req.info.name}\" has registered")
-  } yield MsgRegistrationResponse.succeeded(metadata, id).asJson
+  def closeIfTimeout: IO[Unit] = for {
+    state <- stateRef.get
+    now <- IO.delay(OffsetDateTime.now())
+    _ <-
+      if (state.lastUpdate + 30.seconds < now) {
+        close(1000)
+      } else {
+        IO.unit
+      }
+  } yield ()
 
-  def processMsg(doc: Json): IO[Boolean] = for {
-    metadata <- IO
-      .delay(doc.hcursor.downField("metadata").as[MsgMetadata])
-      .rethrow
-    res <- metadata.`type` match
+  def update(info: ServerInfo): IO[Unit] = for {
+    now <- IO.delay(OffsetDateTime.now())
+    _ <- stateRef.update(_.withInfo(info, now))
+  } yield ()
+
+  def send[T](input: T)(using Encoder[T]): IO[Unit] = for {
+    state <- stateRef.get
+    _ <- state.sendQueue.offer(input.asJson)
+  } yield ()
+
+  def processMsg(doc: Json): IO[Unit] = for {
+    metadata <- IO.fromEither(doc.hcursor.downField("metadata").as[MsgMetadata])
+    _ <- metadata.`type` match
       case 1 =>
-        register(metadata, doc).map(Some(_))
-      case _ => IO.pure(None)
-    _ <- res match
-      case Some(res) =>
-        stateRef.get.flatMap(
-          _.sendQueue.offer(WebSocketFrame.Text(res.noSpaces, true))
-        )
-      case None => IO.unit
-  } yield res.isDefined
+        for {
+          req <- IO.fromEither(doc.as[MsgRegistrationRequest])
+          _ <- update(req.info)
+          _ <- send(MsgGeneralResponse.succeeded(metadata))
+        } yield ()
+      case _ => IO.unit
+  } yield ()
 
-  def process(f: WebSocketFrame): IO[Option[WebSocketFrame]] = for {
-    filtered <- f match
-      case WebSocketFrame.Text(str, last) =>
-        IO.delay(parse(str))
-          .rethrow
-          .flatMap(processMsg)
-          .map(filtered =>
-            if (filtered) { None }
-            else { Some(f) }
-          )
-          .recoverWith {
-            case s: ParsingFailure  => close(1003) *> IO.pure(None)
-            case s: DecodingFailure => close(1003) *> IO.pure(None)
-            case _                  => close(1011) *> IO.pure(None)
-          }
-      case _ => IO.pure(Some(f))
-  } yield filtered
+  def startProcess: IO[Unit] = for {
+    state <- stateRef.get
+    _ <- state.recvTopic
+      .subscribe(128)
+      .evalMap(processMsg)
+      .compile
+      .drain
+      .start
+  } yield ()
 }
 
 object ServerRoutes {
+  private def onClose(service: ServerService, ref: Ref[IO, ServerState]) = for {
+    state <- ref.get
+    _ <- service.removeServer(state.id)
+    _ <- Scribe[IO].info(
+      s"Server ${state.id} \"${state.info.map(_.name).getOrElse("UNREGISTERED")}\" disconnected"
+    )
+  } yield ()
+
+  private def makeSend(
+      state: ServerState
+  ): Stream[IO, WebSocketFrame] =
+    Stream
+      .fromQueueUnterminated(state.sendQueue)
+      .map(_.noSpaces)
+      .map(WebSocketFrame.Text(_))
+      .merge(Stream.fromQueueUnterminated(state.rawSendQueue))
+
+  private def makeRecv(
+      state: ServerState
+  ): Pipe[IO, WebSocketFrame, Unit] =
+    (s: Stream[IO, WebSocketFrame]) => {
+      s.mapFilter {
+        case WebSocketFrame.Text(str, last) => Some(str)
+        case _                              => None
+      }.through(json.ast.parse)
+        .through(state.recvTopic.publish)
+    }
+
   def make(
       wsb: WebSocketBuilder[IO],
       service: ServerService
   )(using GenId[IO]) = {
     import org.http4s.dsl.io.*
+
     HttpRoutes.of[IO] {
       case GET -> Root / "v2" / "server" / "ws" =>
         for {
-          serverRef <- service.newServer
-          server <- serverRef.get
-          protocol = ServerWebSocketProtocol(serverRef)
+          state <- ServerState.make()
+          stateRef <- service.insertServer(state)
+          _ <- stateRef.startProcess
           res <- wsb
             .withFilterPingPongs(true)
             .withDefragment(true)
-            .withOnClose(for {
-              server <- serverRef.get
-              _ <- service.removeServer(server.id)
-              _ <- Scribe[IO].info(
-                s"Server ${server.id} \"${server.info.map(_.name).getOrElse("UNREGISTERED")}\" disconnected"
-              )
-            } yield ())
-            .build(
-              Stream
-                .fromQueueUnterminated(server.sendQueue)
-                .merge(protocol.pingStream(server)),
-              _.evalMapFilter(protocol.process)
-                .through(server.recvTopic.publish)
-            )
+            .withOnClose(onClose(service, stateRef))
+            .build(makeSend(state), makeRecv(state))
         } yield res
       case GET -> Root / "v2" / "server" / "list" =>
         for {

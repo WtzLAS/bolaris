@@ -7,6 +7,7 @@ object V {
   val scribe = "3.13.5"
   val circe = "0.14.7"
   val chronoscala = "2.0.10"
+  val fs2Data = "1.11.0"
 }
 
 object bolaris extends ScalaModule {
@@ -24,6 +25,8 @@ object bolaris extends ScalaModule {
     ivy"com.outr::scribe-cats:${V.scribe}",
     ivy"io.circe::circe-core:${V.circe}",
     ivy"io.circe::circe-parser:${V.circe}",
-    ivy"io.github.chronoscala::chronoscala:${V.chronoscala}"
+    ivy"io.github.chronoscala::chronoscala:${V.chronoscala}",
+    ivy"org.gnieh::fs2-data-json:${V.fs2Data}",
+    ivy"org.gnieh::fs2-data-json-circe:${V.fs2Data}"
   )
 }
