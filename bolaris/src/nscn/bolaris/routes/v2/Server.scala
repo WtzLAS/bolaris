@@ -5,8 +5,6 @@ import cats.effect.kernel.Ref
 import cats.syntax.all.*
 import fs2.Pipe
 import fs2.Stream
-import fs2.data.json
-import fs2.data.json.circe.*
 import io.circe.Codec
 import io.circe.Encoder
 import io.circe.Json
@@ -129,7 +127,8 @@ object ServerRoutes {
       s.mapFilter {
         case WebSocketFrame.Text(str, last) => Some(str)
         case _                              => None
-      }.through(json.ast.parse)
+      }.map(io.circe.parser.parse)
+        .rethrow
         .through(state.recvTopic.publish)
     }
 

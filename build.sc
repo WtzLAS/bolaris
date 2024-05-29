@@ -25,8 +25,6 @@ object bolaris extends ScalaModule {
     ivy"com.outr::scribe-cats:${V.scribe}",
     ivy"io.circe::circe-core:${V.circe}",
     ivy"io.circe::circe-parser:${V.circe}",
-    ivy"io.github.chronoscala::chronoscala:${V.chronoscala}",
-    ivy"org.gnieh::fs2-data-json:${V.fs2Data}",
-    ivy"org.gnieh::fs2-data-json-circe:${V.fs2Data}"
+    ivy"io.github.chronoscala::chronoscala:${V.chronoscala}"
   )
 }
